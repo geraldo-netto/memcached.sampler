@@ -77,8 +77,7 @@ get | key | - | -
 delete | key | - | -
 flush | - | - | -
 
- All values from columns Command, Argument 1, Argument 2 must be string
+ All values from columns Command, Argument 1, Argument 2 must be string  
  All values from column Argument 3 must be an integer number
-
 
 3. Play!!!
