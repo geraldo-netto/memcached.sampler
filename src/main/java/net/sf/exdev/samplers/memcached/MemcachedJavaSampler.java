@@ -15,15 +15,14 @@ import org.slf4j.LoggerFactory;
 
 public class MemcachedJavaSampler extends AbstractJavaSamplerClient implements Interruptible {
 
-	private static final Logger LOG = LoggerFactory.getLogger(MemcachedJavaSampler.class);
-
 	private static final String HOST = "Host";
 	private static final String PORT = "Port";
 	private static final String INPUT_FILE = "Input File";
+	private static final Logger LOG = LoggerFactory.getLogger(MemcachedJavaSampler.class);
 
 	private String host = "localhost";
 	private int port = 11211;
-	private File inputFile = new File(System.getProperty("user.home"));
+	private File inputFile = new File(System.getProperty("user.home") + File.separator);
 	private MemCachedMediator memcachedMediator = null;
 
 	@Override
@@ -58,10 +57,10 @@ public class MemcachedJavaSampler extends AbstractJavaSamplerClient implements I
 		}
 
 		try {
-			memcachedMediator = new MemCachedMediator(host, port, inputFile);
+			memcachedMediator = new MemCachedMediator(host, port);
 
 		} catch (IOException ioEx) {
-			LOG.error(ioEx.getMessage());
+			LOG.error(ioEx.getMessage(), ioEx);
 		}
 	}
 
@@ -86,12 +85,14 @@ public class MemcachedJavaSampler extends AbstractJavaSamplerClient implements I
 			results.setResponseData(output.toString(), System.getProperty("file.encoding"));
 
 			results.setResponseMessage(output.toString());
+			results.setResponseCode("200");
 			results.setResponseOK();
 			results.setResponseMessageOK();
 			results.setResponseCodeOK();
 			results.setSuccessful(true);
 
 		} catch (Exception ex) {
+			results.setResponseCode("500");
 			LOG.error(ex.getMessage(), ex);
 
 			if (output != null) {
@@ -113,8 +114,10 @@ public class MemcachedJavaSampler extends AbstractJavaSamplerClient implements I
 				try {
 					memcachedMediator.close();
 
-				} catch (IOException ex) {
-					LOG.error("Closing connection the hard way...", ex);
+				} catch (IOException ioEx) {
+					LOG.error("Closing connection the hard way...", ioEx);
+
+				} finally {
 					memcachedMediator = null;
 				}
 			}
@@ -124,7 +127,23 @@ public class MemcachedJavaSampler extends AbstractJavaSamplerClient implements I
 	}
 
 	public boolean interrupt() {
-		return false;
+		if (memcachedMediator == null) {
+			LOG.info("Nothing to interrupt, MemCached Mediator is down");
+		} else {
+			try {
+				LOG.info("Trying to close connection with MemCached");
+				memcachedMediator.close();
+
+			} catch (IOException ioEx) {
+				LOG.error("Unable to shutdown down MemCached Mediator", ioEx);
+
+			} finally {
+				LOG.warn("Forcing MemCached Mediator to null");
+				memcachedMediator = null;
+			}
+		}
+
+		return (memcachedMediator == null);
 	}
 
 }

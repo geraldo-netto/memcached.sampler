@@ -20,9 +20,9 @@ public class MemCachedMediator {
 	private MemcachedClient client = null;
 	private static final Logger LOG = LoggerFactory.getLogger(MemCachedMediator.class);
 
-	public MemCachedMediator(String host, int port, File file) throws IOException {
+	public MemCachedMediator(String host, int port) throws IOException {
 		client = new XMemcachedClient(host, port);
-		LOG.info("MemCached configured: {}:{}  inputfile: {}", host, port, file);
+		LOG.info("MemCached configured: {}:{}", host, port);
 	}
 
 	public boolean add(String key, String value, int ttl) throws Exception {
