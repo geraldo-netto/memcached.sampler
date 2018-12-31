@@ -1,4 +1,4 @@
-package net.sf.exdev.memcached.sampler;
+package net.sf.exdev.samplers.memcached;
 
 import java.io.File;
 import java.io.IOException;
