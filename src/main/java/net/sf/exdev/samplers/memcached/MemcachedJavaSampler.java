@@ -127,10 +127,10 @@ public class MemcachedJavaSampler extends AbstractJavaSamplerClient implements I
 				memcachedMediator.close();
 
 			} catch (IOException ioEx) {
-				LOG.error("Unable to shutdown down MemCached Mediator", ioEx);
+				LOG.error("Unable to shutdown MemCached Mediator", ioEx);
 
 			} finally {
-				LOG.warn("Forcing MemCached Mediator to null");
+				LOG.info("Forcing MemCached Mediator to null");
 				memcachedMediator = null;
 			}
 		}
