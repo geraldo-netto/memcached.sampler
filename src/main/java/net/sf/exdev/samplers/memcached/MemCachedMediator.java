@@ -8,48 +8,57 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.rubyeye.xmemcached.MemcachedClient;
 import net.rubyeye.xmemcached.XMemcachedClient;
+import net.rubyeye.xmemcached.exception.MemcachedException;
 
 public class MemCachedMediator {
 
-	private MemcachedClient client = null;
+	private volatile MemcachedClient client = null;
 	private static final Logger LOG = LoggerFactory.getLogger(MemCachedMediator.class);
 
-	public MemCachedMediator(String host, int port) throws IOException {
-		client = new XMemcachedClient(host, port);
-		LOG.info("MemCached configured: {}:{}", host, port);
+	public MemCachedMediator(String host, int port) {
+		try {
+			client = new XMemcachedClient(host, port);
+			LOG.info("MemCached configured: {}:{}", host, port);
+
+		} catch (IOException ioEx) {
+			throw new IllegalStateException("Unable to start MemCached client", ioEx);
+		}
 	}
 
-	public boolean add(String key, String value, int ttl) throws Exception {
+	public boolean add(String key, String value, int ttl)
+			throws TimeoutException, InterruptedException, MemcachedException {
 		return client.add(key, ttl, value);
 	}
 
-	public boolean set(String key, String value, int ttl) throws Exception {
+	public boolean set(String key, String value, int ttl)
+			throws TimeoutException, InterruptedException, MemcachedException {
 		return client.set(key, ttl, value);
 	}
 
-	public boolean append(String key, String value) throws Exception {
+	public boolean append(String key, String value) throws TimeoutException, InterruptedException, MemcachedException {
 		return client.append(key, value);
 	}
 
-	public boolean prepend(String key, String value) throws Exception {
+	public boolean prepend(String key, String value) throws TimeoutException, InterruptedException, MemcachedException {
 		return client.prepend(key, value);
 	}
 
-	public String get(String key) throws Exception {
+	public String get(String key) throws TimeoutException, InterruptedException, MemcachedException {
 		return client.get(key);
 	}
 
-	public boolean delete(String key) throws Exception {
+	public boolean delete(String key) throws TimeoutException, InterruptedException, MemcachedException {
 		return client.delete(key);
 	}
 
-	public boolean flush() throws Exception {
+	public boolean flush() throws TimeoutException, InterruptedException, MemcachedException {
 		client.flushAll();
 		return true;
 	}
@@ -66,7 +75,8 @@ public class MemCachedMediator {
 		return lines;
 	}
 
-	public Map<String, Object> parse(List<String> lines) {
+	public Map<String, Object> parse(List<String> lines)
+			throws TimeoutException, InterruptedException, MemcachedException {
 		int total = 0;
 		int error = 0;
 		Map<String, Object> result = new HashMap<>();
@@ -74,46 +84,39 @@ public class MemCachedMediator {
 
 		for (String line : lines) {
 			String[] command = line.trim().split("  ");
-			try {
-				switch (command[0].toLowerCase()) {
-				case "add":
-					add(command[1], command[2], Integer.parseInt(command[3]));
-					break;
+			switch (command[0].toLowerCase()) {
+			case "add":
+				add(command[1], command[2], Integer.parseInt(command[3]));
+				break;
 
-				case "set":
-					set(command[1], command[2], Integer.parseInt(command[3]));
-					break;
+			case "set":
+				set(command[1], command[2], Integer.parseInt(command[3]));
+				break;
 
-				case "append":
-					append(command[1], command[2]);
-					break;
+			case "append":
+				append(command[1], command[2]);
+				break;
 
-				case "prepend":
-					prepend(command[1], command[2]);
-					break;
+			case "prepend":
+				prepend(command[1], command[2]);
+				break;
 
-				case "get":
-					get(command[1]);
-					break;
+			case "get":
+				get(command[1]);
+				break;
 
-				case "delete":
-					delete(command[1]);
-					break;
+			case "delete":
+				delete(command[1]);
+				break;
 
-				case "flush":
-					flush();
-					break;
+			case "flush":
+				flush();
+				break;
 
-				default:
-					error++;
-					errorMessages.add(String.format("Input line %s is malformed", line));
-					LOG.error("Input line {} is malformed", line);
-				}
-
-			} catch (Exception ex) {
+			default:
 				error++;
-				errorMessages.add(String.format("Unable to execute line %s => %s", line, ex.getMessage()));
-				LOG.error("Unable to execute line {} => {}", line, ex.getMessage(), ex);
+				errorMessages.add(String.format("Input line %s is malformed", line));
+				LOG.error("Input line {} is malformed", line);
 			}
 
 			total++;

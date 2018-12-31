@@ -20,10 +20,14 @@ public class MemcachedJavaSampler extends AbstractJavaSamplerClient implements I
 	private static final String INPUT_FILE = "Input File";
 	private static final Logger LOG = LoggerFactory.getLogger(MemcachedJavaSampler.class);
 
-	private String host = "localhost";
-	private int port = 11211;
-	private File inputFile = new File(System.getProperty("user.home") + File.separator);
-	private MemCachedMediator memcachedMediator = null;
+	private volatile String host = "localhost";
+	private volatile int port = 11211;
+	private volatile File inputFile = new File(System.getProperty("user.home") + File.separator);
+	private volatile MemCachedMediator memcachedMediator = null;
+
+	// https://stackoverflow.com/questions/106179/regular-expression-to-match-dns-hostname-or-ip-address
+	private static final String PATTERN_IP = "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$";
+	private static final String PATTERN_HOSTNAME = "^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]).)*([A-Za-z]|[A-Za-z][A-Za-z0-9-]*[A-Za-z0-9])$";
 
 	@Override
 	public Arguments getDefaultParameters() {
@@ -36,18 +40,14 @@ public class MemcachedJavaSampler extends AbstractJavaSamplerClient implements I
 
 	@Override
 	public void setupTest(JavaSamplerContext context) {
-		setupValues(context);
-	}
-
-	private void setupValues(JavaSamplerContext context) {
 		host = context.getParameter(HOST);
-		if (host == null || host.trim().isEmpty()) {
-			throw new IllegalArgumentException("Host cannot be empty");
+		if (host == null || host.trim().isEmpty() && (!host.matches(PATTERN_IP) || !host.matches(PATTERN_HOSTNAME))) {
+			throw new IllegalArgumentException("Host cannot be empty, default: localhost");
 		}
 
 		port = Integer.parseInt(context.getParameter(PORT));
-		if (port < 1 || port > 65535) {
-			throw new IllegalArgumentException("Port value must be between 1 and 65535");
+		if (0 > port && port > 65535) {
+			throw new IllegalArgumentException("Port value must be between 1 and 65535, default: 11211");
 		}
 
 		inputFile = new File(context.getParameter(INPUT_FILE));
@@ -56,34 +56,27 @@ public class MemcachedJavaSampler extends AbstractJavaSamplerClient implements I
 					String.format("%s does not exist or is not a file", inputFile.toString()));
 		}
 
-		try {
-			memcachedMediator = new MemCachedMediator(host, port);
-
-		} catch (IOException ioEx) {
-			LOG.error(ioEx.getMessage(), ioEx);
-		}
+		memcachedMediator = new MemCachedMediator(host, port);
+		LOG.info("MemCached Mediator: {}", memcachedMediator);
 	}
 
 	@SuppressWarnings("unchecked")
 	public SampleResult runTest(JavaSamplerContext context) {
 		Map<String, Object> output = null;
-
 		SampleResult results = new SampleResult();
 		results.setSampleLabel("MemCached");
 		results.setContentType(System.getProperty("file.encoding"));
 		results.setDataType(SampleResult.TEXT);
 
 		try {
-			if (memcachedMediator == null) {
-				throw new IOException("Unable to instantiate MemCached client, aborting");
-			}
-
 			results.sampleStart();
 			List<String> lines = memcachedMediator.getFileContent(inputFile);
-			results.setSamplerData(lines.toString());
 			output = memcachedMediator.parse(lines);
-			results.setResponseData(output.toString(), System.getProperty("file.encoding"));
-
+			String bodyContent = lines.toString().replace("[", "").replace("]", "").replaceAll(", ", "\n");
+			results.setBodySize((long) bodyContent.getBytes().length);
+			results.setSamplerData(bodyContent);
+			results.setResponseData(output.toString().replace("{", "").replace("}", "").replaceAll(", ", "\n"),
+									System.getProperty("file.encoding"));
 			results.setResponseMessage(output.toString());
 			results.setResponseCode("200");
 			results.setResponseOK();
@@ -126,10 +119,9 @@ public class MemcachedJavaSampler extends AbstractJavaSamplerClient implements I
 		return results;
 	}
 
+	@Override
 	public boolean interrupt() {
-		if (memcachedMediator == null) {
-			LOG.info("Nothing to interrupt, MemCached Mediator is down");
-		} else {
+		if (memcachedMediator != null) {
 			try {
 				LOG.info("Trying to close connection with MemCached");
 				memcachedMediator.close();
@@ -143,7 +135,7 @@ public class MemcachedJavaSampler extends AbstractJavaSamplerClient implements I
 			}
 		}
 
-		return (memcachedMediator == null);
+		return (memcachedMediator != null);
 	}
 
 }
